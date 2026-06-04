@@ -1,0 +1,33 @@
+﻿/* Style resets & customized layout features for Barber scheduler */
+
+body {
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* Custom Scrollbar design for slate dashboard slots */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: #09090b; /* zinc-950 */
+}
+
+::-webkit-scrollbar-thumb {
+    background: #27272a; /* zinc-800 */
+    border-radius: 9999px;
+}
+
+    ::-webkit-scrollbar-thumb:hover {
+        background: #d97706; /* amber-600 */
+    }
+
+/* Subtle pulse glow effects */
+.shadow-glow {
+    box-shadow: 0 0 20px -5px rgba(217, 119, 6, 0.15);
+}
+
+.item-transition {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
