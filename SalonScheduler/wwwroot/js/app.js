@@ -158,6 +158,7 @@ function initAuthSession() {
             // Load work
             generateDaysList();
             fetchAppointments();
+            fetchServices(); // Rerun specifically for currently logged in barber!
         } catch (e) {
             localStorage.removeItem("currentBarber");
             currentBarber = null;
@@ -308,7 +309,7 @@ function generateDaysList() {
         const button = document.createElement("button");
         button.type = "button";
         button.className = `flex flex-col items-center gap-1 px-5 py-3 rounded-xl border transition duration-200 cursor-pointer ${isActive
-                ? "bg-amber-600 text-white font-bold border-amber-500 shadow-lg shadow-amber-600/10"
+                ? "date-btn-active"
                 : "bg-zinc-950 text-zinc-400 border-zinc-900 hover:text-white hover:border-zinc-800"
             }`;
         button.id = `btn-date-${dateString}`;
@@ -324,7 +325,7 @@ function generateDaysList() {
                 btn.className = "flex flex-col items-center gap-1 px-5 py-3 rounded-xl border transition duration-200 cursor-pointer bg-zinc-950 text-zinc-400 border-zinc-900 hover:text-white hover:border-zinc-800";
             });
             // Apply current active style
-            button.className = "flex flex-col items-center gap-1 px-5 py-3 rounded-xl border transition duration-250 cursor-pointer bg-amber-600 text-white font-bold border-amber-500 shadow-lg shadow-amber-600/10";
+            button.className = "flex flex-col items-center gap-1 px-5 py-3 rounded-xl border transition duration-250 cursor-pointer date-btn-active";
 
             selectedDate = dateString;
             selectedDateBadge.textContent = selectedDate;
@@ -339,17 +340,26 @@ function generateDaysList() {
 // --- METRIC READERS & API CALLERS ---
 
 async function fetchServices() {
+    const barberIdStr = currentBarber ? currentBarber.id : "";
+    const key = currentBarber ? `services_barber_${currentBarber.id}` : "services";
     try {
-        const response = await fetch("/api/services");
+        const response = await fetch(`/api/services?barberId=${barberIdStr}`);
         if (!response.ok) throw new Error("Services REST API offline");
         services = await response.json();
     } catch (e) {
-        const cached = localStorage.getItem("services");
+        const cached = localStorage.getItem(key);
         if (cached) {
             services = JSON.parse(cached);
         } else {
-            services = DEFAULT_SERVICES;
-            localStorage.setItem("services", JSON.stringify(DEFAULT_SERVICES));
+            // deep copy DEFAULT_SERVICES
+            services = DEFAULT_SERVICES.map(s => ({
+                id: s.id,
+                nameFa: s.nameFa,
+                price: s.price,
+                durationMin: s.durationMin,
+                barberId: currentBarber ? currentBarber.id : undefined
+            }));
+            localStorage.setItem(key, JSON.stringify(services));
         }
     }
     // Set UI dropdown selections
@@ -367,15 +377,31 @@ function renderServicesUI() {
         opt.textContent = `${svc.nameFa} — ${svc.price.toLocaleString()} تومان (${svc.durationMin} دقیقه)`;
         serviceSelectElement.appendChild(opt);
 
-        // Sidebar display builder
+        // Sidebar display builder with custom edit/delete buttons
         const card = document.createElement("div");
-        card.className = "flex items-center justify-between text-xs p-2.5 bg-zinc-950 border border-zinc-800 rounded-lg";
+        card.className = "service-compact-card";
+
+        // Render edit and delete buttons only if currentBarber owns this service (or in offline mode)
+        const isOwner = currentBarber && (!svc.barberId || String(svc.barberId) === String(currentBarber.id));
+
         card.innerHTML = `
-            <div>
-                <p class="font-bold text-zinc-200">${svc.nameFa}</p>
-                <p class="text-[10px] text-zinc-500 mt-0.5">${svc.durationMin} دقیقه زمان لازم</p>
+            <div class="service-compact-info">
+                <p class="service-compact-name">${svc.nameFa}</p>
+                <p class="service-compact-duration">${svc.durationMin} دقیقه زمان لازم</p>
             </div>
-            <span class="text-[11px] font-mono font-bold text-amber-500">${svc.price.toLocaleString()} تومان</span>
+            <div class="service-compact-right-pack">
+                <span class="service-compact-price">${svc.price.toLocaleString()} تومان</span>
+                ${isOwner ? `
+                <div class="service-compact-actions">
+                    <button type="button" class="btn-service-mini" onclick="editServiceInline('${svc.id}', '${escapeHtml(svc.nameFa)}', ${svc.price}, ${svc.durationMin})">
+                        ✏️ ویرایش
+                    </button>
+                    <button type="button" class="btn-service-mini delete-style" onclick="deleteServiceInline('${svc.id}')">
+                        🗑️ حذف
+                    </button>
+                </div>
+                ` : ""}
+            </div>
         `;
         servicesSidebarContainer.appendChild(card);
     });
@@ -434,47 +460,41 @@ function renderTimeLineSlots() {
                 ledgerIncome += Number(serviceInfo.price);
             }
 
-            containerBox.className = "border border-amber-500/20 bg-gradient-to-l from-amber-950/10 to-zinc-900 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between p-4 relative overflow-hidden transition duration-150";
+            containerBox.className = "slot-booking-row appointment-booked";
             containerBox.innerHTML = `
-                <div class="absolute top-0 bottom-0 right-0 w-1 bg-amber-500"></div>
-                <div class="flex items-center gap-4">
-                    <div class="bg-amber-500/10 text-amber-500 border border-amber-500/20 px-3.5 py-1.5 rounded-lg font-mono text-sm font-bold min-w-[65px] text-center">
-                        ${slot}
-                    </div>
-                    <div>
-                        <div class="flex items-center gap-2 flex-wrap">
-                            <span class="text-sm font-bold text-white">${reservation.clientName}</span>
-                            <span class="text-[10px] bg-amber-600/20 text-amber-400 px-2.5 py-0.5 rounded-full border border-amber-500/10 font-bold">
-                                ${serviceInfo ? serviceInfo.nameFa : "خدمات انتخابی"}
-                            </span>
-                            <a href="tel:${reservation.clientPhone}" class="text-[10px] font-mono text-zinc-400 hover:text-white bg-zinc-800 px-2 py-0.5 rounded flex items-center gap-1">
+                <div class="slot-left-accent"></div>
+                <div class="slot-details-group">
+                    <div class="slot-time-badge">${slot}</div>
+                    <div class="slot-info-card">
+                        <div class="slot-meta-group">
+                            <span class="slot-client-name">${reservation.clientName}</span>
+                            <span class="slot-service-tag">${serviceInfo ? serviceInfo.nameFa : "خدمات انتخابی"}</span>
+                            <a href="tel:${reservation.clientPhone}" class="slot-phone-link">
                                 📞 ${reservation.clientPhone}
                             </a>
                         </div>
-                        ${reservation.notes ? `<p class="text-xs text-zinc-400 bg-zinc-950/40 px-2.5 py-1 text-zinc-300 rounded mt-1.5 border border-zinc-800 border-dashed">${reservation.notes}</p>` : ""}
+                        ${reservation.notes ? `<p class="slot-client-notes">${reservation.notes}</p>` : ""}
                     </div>
                 </div>
-                <div class="flex items-center justify-between mt-3 sm:mt-0 gap-3">
-                    <div class="text-right pl-3">
-                        <p class="text-xs font-mono font-bold text-emerald-400">${serviceInfo ? serviceInfo.price.toLocaleString() : "0"} تومان</p>
-                        <p class="text-[10px] text-zinc-500">${serviceInfo ? serviceInfo.durationMin : "30"} دقیقه</p>
+                <div class="slot-action-group">
+                    <div class="slot-price-meta">
+                        <p class="slot-price-value">${serviceInfo ? serviceInfo.price.toLocaleString() : "0"} تومان</p>
+                        <p class="slot-price-duration">${serviceInfo ? serviceInfo.durationMin : "30"} دقیقه</p>
                     </div>
-                    <button type="button" class="p-2 bg-red-500/5 hover:bg-red-500/10 text-zinc-500 hover:text-red-400 rounded-lg border border-transparent hover:border-red-500/20 cursor-pointer" onclick="cancelAppointment('${reservation.id}')">
+                    <button type="button" class="btn-icon-cancel" onclick="cancelAppointment('${reservation.id}')">
                         🗑️
                     </button>
                 </div>
             `;
         } else {
             // Free slot
-            containerBox.className = "border border-zinc-900 bg-zinc-950 hover:bg-zinc-900/40 rounded-xl flex items-center justify-between p-4 transition duration-150";
+            containerBox.className = "slot-booking-row appointment-free";
             containerBox.innerHTML = `
-                <div class="flex items-center gap-4">
-                    <div class="bg-zinc-900 text-zinc-500 border border-zinc-800 px-3.5 py-1.5 rounded-lg font-mono text-sm font-bold min-w-[65px] text-center">
-                        ${slot}
-                    </div>
-                    <span class="text-xs text-zinc-600 hidden sm:block">بازه زمانی خالی و آماده برای پذیرش مشتریان شما</span>
+                <div class="slot-details-group">
+                    <div class="slot-time-badge free-badge">${slot}</div>
+                    <span class="slot-free-hint">بازه زمانی خالی و آماده برای پذیرش مشتریان شما</span>
                 </div>
-                <button type="button" class="px-3.5 py-1.5 text-xs font-bold bg-zinc-900 text-amber-500 rounded-lg border border-zinc-800 hover:bg-amber-600 hover:text-white hover:border-amber-500 transition cursor-pointer" onclick="selectTimeSlot('${slot}')">
+                <button type="button" class="btn-slot-reserve" onclick="selectTimeSlot('${slot}')">
                     رزرو این ساعت
                 </button>
             `;
@@ -603,45 +623,215 @@ async function handleFormSubmission(event) {
 // --- VISUAL TOASTS ALERT DISPATCHER ---
 
 function showToast(message, type = "success") {
-    alertBox.className = "p-4 rounded-xl text-sm flex items-center gap-3 active duration-300 shadow-lg";
+    alertBox.className = "alert-box";
 
     if (type === "success") {
-        alertBox.classList.add("bg-emerald-500/10", "border", "border-emerald-500/30", "text-emerald-300");
+        alertBox.classList.add("alert-success-state");
         alertIcon.textContent = "✅";
     } else if (type === "error") {
-        alertBox.classList.add("bg-red-500/10", "border", "border-red-500/30", "text-red-300");
+        alertBox.classList.add("alert-error-state");
         alertIcon.textContent = "❌";
     } else {
-        alertBox.classList.add("bg-amber-500/10", "border", "border-amber-500/30", "text-amber-300");
+        alertBox.classList.add("alert-info-state");
         alertIcon.textContent = "⚙️";
     }
 
     alertText.textContent = message;
-    alertBox.classList.remove("hidden");
+    alertBox.classList.remove("alert-hidden");
 
     setTimeout(() => {
-        alertBox.classList.add("hidden");
+        alertBox.classList.add("alert-hidden");
     }, 4500);
 }
 
 function showAuthToast(message, type = "success") {
-    authAlertBox.className = "w-full p-4 rounded-xl text-sm flex items-center gap-3 active duration-300 shadow-lg";
+    authAlertBox.className = "alert-box";
 
     if (type === "success") {
-        authAlertBox.classList.add("bg-emerald-500/10", "border", "border-emerald-500/30", "text-emerald-300");
+        authAlertBox.classList.add("alert-success-state");
         authAlertIcon.textContent = "✅";
     } else if (type === "error") {
-        authAlertBox.classList.add("bg-red-500/10", "border", "border-red-500/30", "text-red-300");
+        authAlertBox.classList.add("alert-error-state");
         authAlertIcon.textContent = "❌";
     } else {
-        authAlertBox.classList.add("bg-amber-500/10", "border", "border-amber-500/30", "text-amber-300");
+        authAlertBox.classList.add("alert-info-state");
         authAlertIcon.textContent = "⚙️";
     }
 
     authAlertText.textContent = message;
-    authAlertBox.classList.remove("hidden");
+    authAlertBox.classList.remove("alert-hidden");
 }
 
 function hideClearAuthToast() {
-    authAlertBox.classList.add("hidden");
+    authAlertBox.classList.add("alert-hidden");
 }
+
+function escapeHtml(str) {
+    return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+// --- SERVICES MANAGEMENT CONTROLLERS ---
+
+window.toggleAddServiceForm = function () {
+    const container = document.getElementById("service-management-form-container");
+    const formTitle = document.getElementById("service-form-title");
+
+    // Clear form
+    document.getElementById("mgmt-service-id").value = "";
+    document.getElementById("mgmt-service-name").value = "";
+    document.getElementById("mgmt-service-price").value = "";
+    document.getElementById("mgmt-service-duration").value = "";
+
+    formTitle.textContent = "افزودن خدمت جدید به سالن شما";
+    container.classList.toggle("hidden");
+};
+
+window.cancelServiceForm = function () {
+    const container = document.getElementById("service-management-form-container");
+    container.classList.add("hidden");
+};
+
+window.editServiceInline = function (id, name, price, duration) {
+    const container = document.getElementById("service-management-form-container");
+    const formTitle = document.getElementById("service-form-title");
+
+    document.getElementById("mgmt-service-id").value = id;
+    document.getElementById("mgmt-service-name").value = name;
+    document.getElementById("mgmt-service-price").value = price;
+    document.getElementById("mgmt-service-duration").value = duration;
+
+    formTitle.textContent = "ویرایش خدمت فعال";
+    container.classList.remove("hidden");
+    container.scrollIntoView({ behavior: 'smooth' });
+};
+
+window.saveCustomService = async function () {
+    if (!currentBarber) {
+        showToast("خطا: برای ثبت خدمت باید وارد حساب خود شوید.", "error");
+        return;
+    }
+
+    const sId = document.getElementById("mgmt-service-id").value.trim();
+    const sName = document.getElementById("mgmt-service-name").value.trim();
+    const sPrice = document.getElementById("mgmt-service-price").value.trim();
+    const sDuration = document.getElementById("mgmt-service-duration").value.trim();
+
+    if (!sName || !sPrice || !sDuration) {
+        showToast("لطفاً کلیه فیلدهای نام، قیمت و زمان را وارد کنید.", "error");
+        return;
+    }
+
+    const payload = {
+        barberId: currentBarber.id,
+        nameFa: sName,
+        price: Number(sPrice),
+        durationMin: Number(sDuration)
+    };
+
+    const key = `services_barber_${currentBarber.id}`;
+
+    if (sId) {
+        // EDIT MODE
+        try {
+            const response = await fetch(`/api/services/${sId}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.error || "خطایی در ویرایش سرور رخ داد");
+            }
+
+            const updated = await response.json();
+            services = services.map(s => s.id === sId ? updated : s);
+        } catch (e) {
+            console.warn("DB offline, simulating local service edits:", e);
+            services = services.map(s => {
+                if (s.id === sId) {
+                    return { ...s, nameFa: sName, price: Number(sPrice), durationMin: Number(sDuration) };
+                }
+                return s;
+            });
+            localStorage.setItem(key, JSON.stringify(services));
+        }
+        showToast("خدمت مورد نظر با موفقیت ویرایش گردید.", "success");
+    } else {
+        // ADD NEW SERVICE MODE
+        try {
+            const response = await fetch("/api/services", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.error || "خطایی در ساخت خدمت رخ داد");
+            }
+
+            const fresh = await response.json();
+            services.push(fresh);
+        } catch (e) {
+            console.warn("DB offline, simulating local service creation:", e);
+            const simulatedSvc = {
+                id: "svc-sim-" + Date.now(),
+                barberId: currentBarber.id,
+                nameFa: sName,
+                price: Number(sPrice),
+                durationMin: Number(sDuration)
+            };
+            services.push(simulatedSvc);
+            localStorage.setItem(key, JSON.stringify(services));
+        }
+        showToast("خدمت جدید با موفقیت به پورتفو اضافه گردید.", "success");
+    }
+
+    // Hide and reload
+    document.getElementById("service-management-form-container").classList.add("hidden");
+    renderServicesUI();
+    renderTimeLineSlots();
+};
+
+window.deleteServiceInline = async function (serviceId) {
+    if (!currentBarber) return;
+
+    // Safety check - make sure at least 1 service stays active
+    if (services.length <= 1) {
+        showToast("خطا: شما موظفید حداقل یک خدمت فعال در آرایشگاه خود ثبت داشته باشید!", "error");
+        return;
+    }
+
+    if (!confirm("آیا مایل به حذف قطعی این خدمت از سالن خود هستید؟")) {
+        return;
+    }
+
+    const key = `services_barber_${currentBarber.id}`;
+
+    try {
+        const response = await fetch(`/api/services/${serviceId}?barberId=${currentBarber.id}`, {
+            method: "DELETE"
+        });
+
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.error || "حذف ناموفق بود");
+        }
+
+        services = services.filter(s => s.id !== serviceId);
+    } catch (e) {
+        console.warn("Server connection failed, performing simulated local delete for service:", e);
+        services = services.filter(s => s.id !== serviceId);
+        localStorage.setItem(key, JSON.stringify(services));
+    }
+
+    renderServicesUI();
+    renderTimeLineSlots();
+    showToast("خدمت مورد نظر با موفقیت حذف گردید.", "success");
+};
