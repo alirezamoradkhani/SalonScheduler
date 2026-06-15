@@ -1,15 +1,31 @@
-﻿let selectedDate = "2026-06-01";
+﻿// Standalone client javascript code for Baber Scheduler Template with Multi-Barber Auth
+// Designed to connect perfectly with ASP.NET Core API controller endpoints
+
+// Helper to get raw dynamic date strings in YYYY-MM-DD
+function getTodayDateString(offset = 0) {
+    const d = new Date();
+    d.setDate(d.getDate() + offset);
+    const yr = d.getFullYear();
+    const mo = String(d.getMonth() + 1).padStart(2, "0");
+    const dy = String(d.getDate()).padStart(2, "0");
+    return `${yr}-${mo}-${dy}`;
+}
+
+// Active states starting with today's real date
+let selectedDate = getTodayDateString(0);
 let services = [];
 let appointments = [];
-let currentBarber = null; 
-let authMode = "login";   
+let currentBarber = null; // Stored user details of authenticated barber
+let authMode = "login";   // 'login' or 'register'
 
+// Complete system operating timeslots (30 minute ranges)
 const OPERATING_SLOTS = [
     "09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "12:00", "12:30",
     "14:00", "14:30", "15:00", "15:30", "16:00", "16:30", "17:00", "17:30",
     "18:00", "18:30", "19:00", "19:30", "20:00", "20:30"
 ];
 
+// Fallback seeded defaults for instant visual preview testing
 const DEFAULT_SERVICES = [
     { id: "1", nameFa: "اصلاح مو (کلاسیک)", price: 150000, durationMin: 45 },
     { id: "2", nameFa: "اصلاح ریش و خط دور", price: 80000, durationMin: 30 },
@@ -24,7 +40,7 @@ const DEFAULT_APPOINTMENTS_FOR_MOCK = [
         barberId: 1,
         clientName: "امیرعلی محمدی",
         clientPhone: "09121112233",
-        date: "2026-06-01",
+        date: getTodayDateString(0),
         timeSlot: "10:00",
         serviceId: "1",
         notes: "کوتاهی دور سفید، پودر حجم دهنده",
@@ -35,7 +51,7 @@ const DEFAULT_APPOINTMENTS_FOR_MOCK = [
         barberId: 1,
         clientName: "حسین حسینی",
         clientPhone: "09194445566",
-        date: "2026-06-01",
+        date: getTodayDateString(0),
         timeSlot: "11:30",
         serviceId: "2",
         notes: "کف ریش داغ با مرطوب کننده بدون عطر",
@@ -46,7 +62,7 @@ const DEFAULT_APPOINTMENTS_FOR_MOCK = [
         barberId: 2,
         clientName: "میلاد امینی",
         clientPhone: "09357778899",
-        date: "2026-06-02",
+        date: getTodayDateString(1),
         timeSlot: "16:00",
         serviceId: "4",
         notes: "پاکسازی عمیق پوست قبل از عروسی",
@@ -54,12 +70,14 @@ const DEFAULT_APPOINTMENTS_FOR_MOCK = [
     }
 ];
 
+// Document Elems Reference
 const authPortalElement = document.getElementById("auth-portal");
 const appWorkspaceElement = document.getElementById("app-workspace");
 const loggedInProfileElement = document.getElementById("logged-in-profile");
 const activeBarberLabelElement = document.getElementById("active-barber-label");
 const btnAuthLogoutElement = document.getElementById("btn-auth-logout");
 
+// Auth Form elements
 const authForm = document.getElementById("auth-form");
 const authModeToggleBtn = document.getElementById("auth-mode-toggle");
 const fieldFullnameGroup = document.getElementById("field-fullname-group");
@@ -69,6 +87,7 @@ const authSubtitleElement = document.getElementById("auth-subtitle");
 const authSubmitBtnSpan = document.querySelector("#auth-submit-btn span");
 const demoHintBox = document.getElementById("demo-hint-box");
 
+// Scheduler UI elements
 const dateSwiperWrapper = document.getElementById("date-swiper-wrapper");
 const timelineSlotsContainer = document.getElementById("timeline-slots-container");
 const serviceSelectElement = document.getElementById("service-id");
@@ -77,6 +96,7 @@ const servicesSidebarContainer = document.getElementById("services-list-sidebar"
 const appointmentForm = document.getElementById("appointment-form");
 const selectedDateBadge = document.getElementById("selected-date-badge");
 
+// Alert box elements
 const alertBox = document.getElementById("alert-box");
 const alertIcon = document.getElementById("alert-icon");
 const alertText = document.getElementById("alert-text");
@@ -85,24 +105,41 @@ const authAlertBox = document.getElementById("auth-alert-box");
 const authAlertIcon = document.getElementById("auth-alert-icon");
 const authAlertText = document.getElementById("auth-alert-text");
 
-
+// Initialize application on DOM Content release
 document.addEventListener("DOMContentLoaded", async () => {
+    // Set current live date dynamically in Persian/Gregorian format for ASP.NET site
+    const liveDateEl = document.getElementById("current-live-date");
+    if (liveDateEl) {
+        try {
+            liveDateEl.textContent = new Date().toLocaleDateString("fa-IR", {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+        } catch (e) {
+            liveDateEl.textContent = getTodayDateString(0);
+        }
+    }
+    if (selectedDateBadge) {
+        selectedDateBadge.textContent = selectedDate;
+    }
 
+    // 1. Rig Auth screen events
     authModeToggleBtn.addEventListener("click", toggleAuthMode);
     authForm.addEventListener("submit", handleAuthFormSubmission);
     btnAuthLogoutElement.addEventListener("click", logoutBarber);
 
-
+    // 2. Load services early for selections
     await fetchServices();
 
-
+    // 3. Initiate Auth Session state checkout
     initAuthSession();
 
-
+    // 4. Register Appointment Form Handler
     appointmentForm.addEventListener("submit", handleFormSubmission);
 });
 
-
+// --- AUTHENTICATION FLOW CONTROLLERS ---
 
 function toggleAuthMode() {
     if (authMode === "login") {
@@ -133,22 +170,22 @@ function initAuthSession() {
         try {
             currentBarber = JSON.parse(stored);
 
-
+            // Adjust layouts
             authPortalElement.classList.add("hidden");
             appWorkspaceElement.classList.remove("hidden");
             loggedInProfileElement.classList.remove("hidden");
 
-
+            // Update header profile label
             let barberLabelText = `💇‍♂️ ${currentBarber.fullName}`;
             if (currentBarber.salonName) {
                 barberLabelText += ` (🏢 ${currentBarber.salonName})`;
             }
             activeBarberLabelElement.textContent = barberLabelText;
 
-
+            // Load work
             generateDaysList();
             fetchAppointments();
-            fetchServices();
+            fetchServices(); // Rerun specifically for currently logged in barber!
         } catch (e) {
             localStorage.removeItem("currentBarber");
             currentBarber = null;
@@ -216,6 +253,7 @@ async function handleAuthFormSubmission(event) {
 
         const data = await response.json();
 
+        // Log in barber
         currentBarber = data;
         localStorage.setItem("currentBarber", JSON.stringify(data));
         showToast("به سیستم خوش آمدید!", "success");
@@ -223,6 +261,7 @@ async function handleAuthFormSubmission(event) {
     } catch (error) {
         console.warn("Direct ASP.NET Auth Endpoint failed, starting fallback client simulation simulation...", error);
 
+        // Dynamic client fallback simulation
         const simulatedBarbersJson = localStorage.getItem("simulated_barbers");
         let simulatedBarbers = simulatedBarbersJson ? JSON.parse(simulatedBarbersJson) : [
             { id: 1, username: "arash", fullName: "آرش زارعی", passwordHash: "123", salonName: "آرایشگاه شاهکار" }
@@ -244,6 +283,7 @@ async function handleAuthFormSubmission(event) {
                 showAuthToast("نام کاربری یا رمز عبور اشتباه است.", "error");
             }
         } else {
+            // Register Simulation
             const exists = simulatedBarbers.some(b => b.username === usernameInput);
             if (exists) {
                 showAuthToast("این نام کاربری قبلاً دریافت شده است.", "error");
@@ -271,12 +311,16 @@ async function handleAuthFormSubmission(event) {
         }
     }
 }
+
+// --- CALENDAR GENERATOR ---
+
 function generateDaysList() {
     dateSwiperWrapper.innerHTML = "";
     const persianDays = ["یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه", "شنبه"];
 
     for (let i = 0; i < 7; i++) {
-        const dateObj = new Date(2026, 5, 1 + i); 
+        const dateObj = new Date();
+        dateObj.setDate(dateObj.getDate() + i);
 
         const year = dateObj.getFullYear();
         const month = String(dateObj.getMonth() + 1).padStart(2, "0");
@@ -290,6 +334,20 @@ function generateDaysList() {
 
         const isActive = dateString === selectedDate;
 
+        let displayDayNum = dateObj.getDate();
+        let monthLabel = "خرداد";
+        try {
+            // Retrieve dynamic Solar Hijri (Jalali) date parameters
+            const dayFormat = new Intl.DateTimeFormat("fa-IR-u-ca-persian-nu-latn", { day: "numeric" });
+            displayDayNum = parseInt(dayFormat.format(dateObj), 10);
+
+            const monthFormat = new Intl.DateTimeFormat("fa-IR-u-ca-persian", { month: "long" });
+            monthLabel = monthFormat.format(dateObj);
+        } catch (e) {
+            displayDayNum = dateObj.getDate();
+            monthLabel = "خرداد";
+        }
+
         const button = document.createElement("button");
         button.type = "button";
         button.className = `flex flex-col items-center gap-1 px-5 py-3 rounded-xl border transition duration-200 cursor-pointer ${isActive
@@ -299,14 +357,16 @@ function generateDaysList() {
         button.id = `btn-date-${dateString}`;
         button.innerHTML = `
             <span class="text-[10px] tracking-wider uppercase opacity-80">${label}</span>
-            <span class="text-lg font-bold font-mono">${dateObj.getDate()}</span>
-            <span class="text-[9px] opacity-75">خرداد</span>
+            <span class="text-lg font-bold font-mono">${displayDayNum}</span>
+            <span class="text-[9px] opacity-75">${monthLabel}</span>
         `;
 
         button.addEventListener("click", () => {
+            // Remove previous active styles
             document.querySelectorAll("[id^='btn-date-']").forEach(btn => {
                 btn.className = "flex flex-col items-center gap-1 px-5 py-3 rounded-xl border transition duration-200 cursor-pointer bg-zinc-950 text-zinc-400 border-zinc-900 hover:text-white hover:border-zinc-800";
             });
+            // Apply current active style
             button.className = "flex flex-col items-center gap-1 px-5 py-3 rounded-xl border transition duration-250 cursor-pointer date-btn-active";
 
             selectedDate = dateString;
@@ -319,6 +379,7 @@ function generateDaysList() {
     }
 }
 
+// --- METRIC READERS & API CALLERS ---
 
 async function fetchServices() {
     const barberIdStr = currentBarber ? currentBarber.id : "";
@@ -332,6 +393,7 @@ async function fetchServices() {
         if (cached) {
             services = JSON.parse(cached);
         } else {
+            // deep copy DEFAULT_SERVICES
             services = DEFAULT_SERVICES.map(s => ({
                 id: s.id,
                 nameFa: s.nameFa,
@@ -342,6 +404,7 @@ async function fetchServices() {
             localStorage.setItem(key, JSON.stringify(services));
         }
     }
+    // Set UI dropdown selections
     renderServicesUI();
 }
 
@@ -350,15 +413,17 @@ function renderServicesUI() {
     servicesSidebarContainer.innerHTML = "";
 
     services.forEach(svc => {
+        // Dropdown option builder
         const opt = document.createElement("option");
         opt.value = svc.id;
         opt.textContent = `${svc.nameFa} — ${svc.price.toLocaleString()} تومان (${svc.durationMin} دقیقه)`;
         serviceSelectElement.appendChild(opt);
 
+        // Sidebar display builder with custom edit/delete buttons
         const card = document.createElement("div");
         card.className = "service-compact-card";
 
-
+        // Render edit and delete buttons only if currentBarber owns this service (or in offline mode)
         const isOwner = currentBarber && (!svc.barberId || String(svc.barberId) === String(currentBarber.id));
 
         card.innerHTML = `
@@ -400,6 +465,7 @@ async function fetchAppointments() {
         if (data) {
             appointments = JSON.parse(data);
         } else {
+            // Seed a clean template for this user so they don't see blank page
             const initialSeeds = DEFAULT_APPOINTMENTS_FOR_MOCK.map(appt => ({
                 ...appt,
                 barberId: currentBarber.id
@@ -415,8 +481,10 @@ async function fetchAppointments() {
 function renderTimeLineSlots() {
     timelineSlotsContainer.innerHTML = "";
 
+    // Filter appointments belonging strictly to the current active date
     const todayBookings = appointments.filter(a => a.date === selectedDate);
 
+    // Reset our timeslot list selection tags
     timeSlotSelectElement.innerHTML = `<option value="">-- یک ساعت آزاد انتخاب کنید --</option>`;
 
     let activeCount = 0;
@@ -461,6 +529,7 @@ function renderTimeLineSlots() {
                 </div>
             `;
         } else {
+            // Free slot
             containerBox.className = "slot-booking-row appointment-free";
             containerBox.innerHTML = `
                 <div class="slot-details-group">
@@ -472,6 +541,7 @@ function renderTimeLineSlots() {
                 </button>
             `;
 
+            // Append custom selection option
             const opt = document.createElement("option");
             opt.value = slot;
             opt.textContent = `ساعت ${slot}`;
@@ -481,11 +551,13 @@ function renderTimeLineSlots() {
         timelineSlotsContainer.appendChild(containerBox);
     });
 
+    // Update LEDGERS widgets counter
     document.getElementById("stat-total-count").innerHTML = `${activeCount} <span class="text-xs font-normal text-zinc-500">نوبت</span>`;
     document.getElementById("stat-total-income").innerHTML = `${ledgerIncome.toLocaleString()} <span class="text-xs font-normal text-zinc-500">تومان</span>`;
     document.getElementById("stat-free-slots").innerHTML = `${(OPERATING_SLOTS.length - activeCount)} <span class="text-xs font-normal text-zinc-500">ساعت خالی</span>`;
 }
 
+// Global scope bindings for dynamically injected HTML nodes
 window.selectTimeSlot = function (slot) {
     if (!currentBarber) return;
     timeSlotSelectElement.value = slot;
@@ -530,6 +602,7 @@ async function handleFormSubmission(event) {
         return;
     }
 
+    // Front double booking constraint validation
     const exists = appointments.some(a => a.date === selectedDate && a.timeSlot === timeSlotSelected);
     if (exists) {
         showToast("خطا: این بازه زمانی پیش از این در نوبت‌های شما ثبت شده است.", "error");
@@ -578,6 +651,7 @@ async function handleFormSubmission(event) {
         localStorage.setItem(`appointments_barber_${currentBarber.id}`, JSON.stringify(appointments));
     }
 
+    // Refresh layout, reset entries
     renderTimeLineSlots();
 
     document.getElementById("client-name").value = "";
@@ -588,6 +662,7 @@ async function handleFormSubmission(event) {
     showToast("نوبت مراجع با موفقیت ثبت و بر روی دیتابیس سالن همگام‌سازی شد.", "success");
 }
 
+// --- VISUAL TOASTS ALERT DISPATCHER ---
 
 function showToast(message, type = "success") {
     alertBox.className = "alert-box";
@@ -642,6 +717,7 @@ function escapeHtml(str) {
         .replace(/'/g, "&#039;");
 }
 
+// --- SERVICES MANAGEMENT CONTROLLERS ---
 
 window.toggleAddServiceForm = function () {
     const container = document.getElementById("service-management-form-container");
@@ -759,6 +835,7 @@ window.saveCustomService = async function () {
         showToast("خدمت جدید با موفقیت به پورتفو اضافه گردید.", "success");
     }
 
+    // Hide and reload
     document.getElementById("service-management-form-container").classList.add("hidden");
     renderServicesUI();
     renderTimeLineSlots();
@@ -767,6 +844,7 @@ window.saveCustomService = async function () {
 window.deleteServiceInline = async function (serviceId) {
     if (!currentBarber) return;
 
+    // Safety check - make sure at least 1 service stays active
     if (services.length <= 1) {
         showToast("خطا: شما موظفید حداقل یک خدمت فعال در آرایشگاه خود ثبت داشته باشید!", "error");
         return;
