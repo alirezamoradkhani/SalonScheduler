@@ -19,9 +19,7 @@ namespace SalonScheduler.Controllers
             _context = context;
         }
 
-        // --- AUTHENTICATION ENDPOINTS ---
 
-        // POST: api/appointments/auth/register
         [HttpPost("auth/register")]
         public async Task<ActionResult<BarberDto>> Register([FromBody] RegisterBarberDto dto)
         {
@@ -38,8 +36,6 @@ namespace SalonScheduler.Controllers
                 return BadRequest("این نام کاربری از قبل در سیستم ثبت شده است.");
             }
 
-            // In production, please use BCrypt.Net or ASP.NET Core Identity PasswordHasher to hash
-            // This is a clear representation of password hash insertion
             var passwordHash = SimpleHash(dto.Password);
 
             var barber = new Barber
@@ -63,7 +59,6 @@ namespace SalonScheduler.Controllers
             });
         }
 
-        // POST: api/appointments/auth/login
         [HttpPost("auth/login")]
         public async Task<ActionResult<BarberDto>> Login([FromBody] LoginDto dto)
         {
@@ -93,9 +88,6 @@ namespace SalonScheduler.Controllers
             });
         }
 
-        // --- APPOINTMENTS ENDPOINTS ---
-
-        // GET: api/appointments
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Appointment>>> GetAppointments([FromQuery] string? date, [FromQuery] int? barberId)
         {
@@ -117,14 +109,12 @@ namespace SalonScheduler.Controllers
             return await query.OrderBy(a => a.Date).ThenBy(a => a.TimeSlot).ToListAsync();
         }
 
-        // GET: api/appointments/services
         [HttpGet("services")]
         public async Task<ActionResult<IEnumerable<Service>>> GetServices()
         {
             return await _context.Services.ToListAsync();
         }
 
-        // POST: api/appointments
         [HttpPost]
         public async Task<ActionResult<Appointment>> BookAppointment([FromBody] AppointmentDto dto)
         {
@@ -140,7 +130,6 @@ namespace SalonScheduler.Controllers
                 return BadRequest("تمامی اطلاعات ضروری را وارد کنید.");
             }
 
-            // Checks for existing booking at the same date and time slot for the SAME barber
             var isDoubleBooked = await _context.Appointments
                 .AnyAsync(a => a.BarberId == dto.BarberId && a.Date == dto.Date.Date && a.TimeSlot == dto.TimeSlot);
 
@@ -149,7 +138,6 @@ namespace SalonScheduler.Controllers
                 return BadRequest("این زمان قبلاً توسط مشتری دیگری برای این آرایشگر رزرو شده است.");
             }
 
-            // Verify service exists
             var serviceExists = await _context.Services.AnyAsync(s => s.Id == dto.ServiceId);
             if (!serviceExists)
             {
@@ -171,13 +159,11 @@ namespace SalonScheduler.Controllers
             _context.Appointments.Add(appointment);
             await _context.SaveChangesAsync();
 
-            // Include service details in response
             await _context.Entry(appointment).Reference(a => a.Service).LoadAsync();
 
             return CreatedAtAction(nameof(GetAppointments), new { id = appointment.Id }, appointment);
         }
 
-        // DELETE: api/appointments/{id}
         [HttpDelete("{id}")]
         public async Task<IActionResult> CancelAppointment(int id, [FromQuery] int barberId)
         {
@@ -198,7 +184,6 @@ namespace SalonScheduler.Controllers
             return Ok(new { message = "نوبت با موفقیت لغو شد." });
         }
 
-        // Helper string hashing for clean, representation code
         private static string SimpleHash(string password)
         {
             using (var sha256 = System.Security.Cryptography.SHA256.Create())
@@ -210,7 +195,6 @@ namespace SalonScheduler.Controllers
         }
     }
 
-    // --- REVENUE DATA TRANSFER OBJECTS ---
 
     public class RegisterBarberDto
     {

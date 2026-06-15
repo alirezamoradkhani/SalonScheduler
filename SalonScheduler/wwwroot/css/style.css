@@ -1,9 +1,4 @@
-﻿/* 
-   Simple, Cozy & Minimalist Style (Cream & Warm White Theme)
-   Strictly vanilla CSS, self-contained, no external framework or CDNs.
-*/
-
-:root {
+﻿:root {
     --bg-color: #faf9f6; /* Clean cozy cream / warm ivory */
     --card-color: #ffffff; /* Pure white for panels */
     --hover-color: #f5f3ef; /* Soft linen hover state */
