@@ -18,6 +18,42 @@ let appointments = [];
 let currentBarber = null; // Stored user details of authenticated barber
 let authMode = "login";   // 'login' or 'register'
 
+// Normalizes API response / local storage appointment models to prevent case-mismatch and full ISO date issues
+function normalizeAppointment(a) {
+    if (!a) return null;
+    let rawDate = a.date !== undefined ? a.date : a.Date;
+    let cleanDate = "";
+    if (rawDate) {
+        // Splitting on 'T' or spaces and trimming whitespace (e.g. SQLite datetime strings)
+        const datePart = rawDate.split(/[T ]/)[0];
+        cleanDate = datePart.trim();
+    }
+    return {
+        id: a.id !== undefined ? a.id : a.Id,
+        barberId: a.barberId !== undefined ? a.barberId : a.BarberId,
+        clientName: a.clientName !== undefined ? a.clientName : a.ClientName,
+        clientPhone: a.clientPhone !== undefined ? a.clientPhone : a.ClientPhone,
+        date: cleanDate,
+        timeSlot: a.timeSlot !== undefined ? a.timeSlot : a.TimeSlot,
+        serviceId: a.serviceId !== undefined ? a.serviceId : a.ServiceId,
+        notes: a.notes !== undefined ? a.notes : a.Notes,
+        createdAt: a.createdAt !== undefined ? a.createdAt : a.CreatedAt
+    };
+}
+
+// Normalizes API response / local storage service models to keep consistent lowercase keys
+function normalizeService(s) {
+    if (!s) return null;
+    return {
+        id: s.id !== undefined ? String(s.id) : String(s.Id),
+        barberId: s.barberId !== undefined ? s.barberId : s.BarberId,
+        nameFa: s.nameFa !== undefined ? s.nameFa : s.NameFa,
+        nameEn: s.nameEn !== undefined ? s.nameEn : s.NameEn,
+        price: s.price !== undefined ? Number(s.price) : Number(s.Price),
+        durationMin: s.durationMin !== undefined ? Number(s.durationMin) : Number(s.DurationMin)
+    };
+}
+
 // Complete system operating timeslots (30 minute ranges)
 const OPERATING_SLOTS = [
     "09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "12:00", "12:30",
@@ -385,16 +421,22 @@ async function fetchServices() {
     const barberIdStr = currentBarber ? currentBarber.id : "";
     const key = currentBarber ? `services_barber_${currentBarber.id}` : "services";
     try {
-        const response = await fetch(`/api/services?barberId=${barberIdStr}`);
+        const response = await fetch(`/api/appointments/services?barberId=${barberIdStr}`);
         if (!response.ok) throw new Error("Services REST API offline");
-        services = await response.json();
+
+        const rawList = await response.json();
+        services = (rawList || []).map(normalizeService);
     } catch (e) {
         const cached = localStorage.getItem(key);
         if (cached) {
-            services = JSON.parse(cached);
+            try {
+                services = JSON.parse(cached).map(normalizeService);
+            } catch (err) {
+                services = [];
+            }
         } else {
             // deep copy DEFAULT_SERVICES
-            services = DEFAULT_SERVICES.map(s => ({
+            services = DEFAULT_SERVICES.map(s => normalizeService({
                 id: s.id,
                 nameFa: s.nameFa,
                 price: s.price,
@@ -456,21 +498,26 @@ async function fetchAppointments() {
         const response = await fetch(`/api/appointments?barberId=${currentBarber.id}`);
         if (!response.ok) throw new Error("Booking controller response failed");
 
-        appointments = await response.json();
+        const rawList = await response.json();
+        appointments = (rawList || []).map(normalizeAppointment);
     } catch (e) {
         console.warn("Direct DB Scheduler server offline, running simulated local barber schedule persistence", e);
         const cachedKey = `appointments_barber_${currentBarber.id}`;
         const data = localStorage.getItem(cachedKey);
 
         if (data) {
-            appointments = JSON.parse(data);
+            try {
+                appointments = JSON.parse(data).map(normalizeAppointment);
+            } catch (err) {
+                appointments = [];
+            }
         } else {
             // Seed a clean template for this user so they don't see blank page
             const initialSeeds = DEFAULT_APPOINTMENTS_FOR_MOCK.map(appt => ({
                 ...appt,
                 barberId: currentBarber.id
             }));
-            appointments = initialSeeds;
+            appointments = initialSeeds.map(normalizeAppointment);
             localStorage.setItem(cachedKey, JSON.stringify(initialSeeds));
         }
     }
@@ -576,10 +623,10 @@ window.cancelAppointment = async function (apptId) {
 
         if (!response.ok) throw new Error("Booking cancellation rejected by server rules");
 
-        appointments = appointments.filter(a => a.id !== apptId);
+        appointments = appointments.filter(a => String(a.id) !== String(apptId));
     } catch (e) {
         console.warn("Express server unreachable, running simulation local delete action:", e);
-        appointments = appointments.filter(a => a.id !== apptId);
+        appointments = appointments.filter(a => String(a.id) !== String(apptId));
         localStorage.setItem(`appointments_barber_${currentBarber.id}`, JSON.stringify(appointments));
     }
 
@@ -632,7 +679,7 @@ async function handleFormSubmission(event) {
         }
 
         const newAppt = await response.json();
-        appointments.push(newAppt);
+        appointments.push(normalizeAppointment(newAppt));
     } catch (error) {
         console.warn("Direct connection to server unavailable, adding booking locally to active barber account", error);
 
@@ -647,7 +694,7 @@ async function handleFormSubmission(event) {
             notes: notesInput,
             createdAt: new Date().toISOString()
         };
-        appointments.push(simulatedAppt);
+        appointments.push(normalizeAppointment(simulatedAppt));
         localStorage.setItem(`appointments_barber_${currentBarber.id}`, JSON.stringify(appointments));
     }
 
@@ -769,6 +816,7 @@ window.saveCustomService = async function () {
     }
 
     const payload = {
+        id: sId && !isNaN(sId) ? parseInt(sId, 10) : 0,
         barberId: currentBarber.id,
         nameFa: sName,
         price: Number(sPrice),
@@ -780,7 +828,7 @@ window.saveCustomService = async function () {
     if (sId) {
         // EDIT MODE
         try {
-            const response = await fetch(`/api/services/${sId}`, {
+            const response = await fetch(`/api/appointments/services/${sId}`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload)
@@ -792,12 +840,12 @@ window.saveCustomService = async function () {
             }
 
             const updated = await response.json();
-            services = services.map(s => s.id === sId ? updated : s);
+            services = services.map(s => s.id === String(sId) ? normalizeService(updated) : s);
         } catch (e) {
             console.warn("DB offline, simulating local service edits:", e);
             services = services.map(s => {
-                if (s.id === sId) {
-                    return { ...s, nameFa: sName, price: Number(sPrice), durationMin: Number(sDuration) };
+                if (s.id === String(sId)) {
+                    return normalizeService({ ...s, nameFa: sName, price: Number(sPrice), durationMin: Number(sDuration) });
                 }
                 return s;
             });
@@ -807,7 +855,7 @@ window.saveCustomService = async function () {
     } else {
         // ADD NEW SERVICE MODE
         try {
-            const response = await fetch("/api/services", {
+            const response = await fetch("/api/appointments/services", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload)
@@ -819,7 +867,7 @@ window.saveCustomService = async function () {
             }
 
             const fresh = await response.json();
-            services.push(fresh);
+            services.push(normalizeService(fresh));
         } catch (e) {
             console.warn("DB offline, simulating local service creation:", e);
             const simulatedSvc = {
@@ -829,7 +877,7 @@ window.saveCustomService = async function () {
                 price: Number(sPrice),
                 durationMin: Number(sDuration)
             };
-            services.push(simulatedSvc);
+            services.push(normalizeService(simulatedSvc));
             localStorage.setItem(key, JSON.stringify(services));
         }
         showToast("خدمت جدید با موفقیت به پورتفو اضافه گردید.", "success");
@@ -857,7 +905,7 @@ window.deleteServiceInline = async function (serviceId) {
     const key = `services_barber_${currentBarber.id}`;
 
     try {
-        const response = await fetch(`/api/services/${serviceId}?barberId=${currentBarber.id}`, {
+        const response = await fetch(`/api/appointments/services/${serviceId}?barberId=${currentBarber.id}`, {
             method: "DELETE"
         });
 

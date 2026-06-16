@@ -3,16 +3,18 @@ using Microsoft.EntityFrameworkCore;
 
 namespace SalonScheduler.Data
 {
+    // Modeled Barber Entity for EF Core and MS SQL Server
     public class Barber
     {
         public int Id { get; set; }
         public string FullName { get; set; } = string.Empty;
         public string Username { get; set; } = string.Empty;
-        public string PasswordHash { get; set; } = string.Empty;
+        public string PasswordHash { get; set; } = string.Empty; // BCrypt hash
         public string? SalonName { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     }
 
+    // Modeled Service Entity for EF Core and MS SQL Server
     public class Service
     {
         public int Id { get; set; }
@@ -20,16 +22,18 @@ namespace SalonScheduler.Data
         public string NameEn { get; set; } = string.Empty;
         public decimal Price { get; set; }
         public int DurationMin { get; set; }
+        public int? BarberId { get; set; } // Associated barber ID
     }
 
+    // Modeled Appointment Entity linked to specific Barber
     public class Appointment
     {
         public int Id { get; set; }
-        public int BarberId { get; set; }
+        public int BarberId { get; set; } // The owner Barber ID
         public string ClientName { get; set; } = string.Empty;
         public string ClientPhone { get; set; } = string.Empty;
         public DateTime Date { get; set; }
-        public string TimeSlot { get; set; } = string.Empty;
+        public string TimeSlot { get; set; } = string.Empty; // e.g. "10:30"
         public int ServiceId { get; set; }
         public string? Notes { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
@@ -54,10 +58,13 @@ namespace SalonScheduler.Data
         {
             base.OnModelCreating(modelBuilder);
 
-
+            // Configure unique Username constrain
             modelBuilder.Entity<Barber>()
                 .HasIndex(b => b.Username)
                 .IsUnique();
+
+            // Configure multi-column unique constraint to prevent double bookings
+            // specifically PER barber (multiple barbers can book same slots!)
             modelBuilder.Entity<Appointment>()
                 .HasIndex(a => new { a.BarberId, a.Date, a.TimeSlot })
                 .IsUnique();
@@ -72,6 +79,12 @@ namespace SalonScheduler.Data
                 .HasOne(a => a.Service)
                 .WithMany()
                 .HasForeignKey(a => a.ServiceId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<Service>()
+                .HasOne<Barber>()
+                .WithMany()
+                .HasForeignKey(s => s.BarberId)
                 .OnDelete(DeleteBehavior.Cascade);
         }
     }

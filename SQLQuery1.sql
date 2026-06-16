@@ -1,0 +1,2 @@
+﻿ALTER TABLE Services
+ADD BarberId INT NULL;

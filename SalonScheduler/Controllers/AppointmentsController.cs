@@ -19,7 +19,9 @@ namespace SalonScheduler.Controllers
             _context = context;
         }
 
+        // --- AUTHENTICATION ENDPOINTS ---
 
+        // POST: api/appointments/auth/register
         [HttpPost("auth/register")]
         public async Task<ActionResult<BarberDto>> Register([FromBody] RegisterBarberDto dto)
         {
@@ -36,6 +38,8 @@ namespace SalonScheduler.Controllers
                 return BadRequest("این نام کاربری از قبل در سیستم ثبت شده است.");
             }
 
+            // In production, please use BCrypt.Net or ASP.NET Core Identity PasswordHasher to hash
+            // This is a clear representation of password hash insertion
             var passwordHash = SimpleHash(dto.Password);
 
             var barber = new Barber
@@ -59,6 +63,7 @@ namespace SalonScheduler.Controllers
             });
         }
 
+        // POST: api/appointments/auth/login
         [HttpPost("auth/login")]
         public async Task<ActionResult<BarberDto>> Login([FromBody] LoginDto dto)
         {
@@ -88,6 +93,9 @@ namespace SalonScheduler.Controllers
             });
         }
 
+        // --- APPOINTMENTS ENDPOINTS ---
+
+        // GET: api/appointments
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Appointment>>> GetAppointments([FromQuery] string? date, [FromQuery] int? barberId)
         {
@@ -109,12 +117,101 @@ namespace SalonScheduler.Controllers
             return await query.OrderBy(a => a.Date).ThenBy(a => a.TimeSlot).ToListAsync();
         }
 
+        // GET: api/appointments/services
         [HttpGet("services")]
-        public async Task<ActionResult<IEnumerable<Service>>> GetServices()
+        public async Task<ActionResult<IEnumerable<Service>>> GetServices([FromQuery] int? barberId)
         {
-            return await _context.Services.ToListAsync();
+            if (barberId == null || barberId <= 0)
+            {
+                return await _context.Services.ToListAsync();
+            }
+
+            var list = await _context.Services.Where(s => s.BarberId == barberId).ToListAsync();
+
+            if (list.Count > 0)
+            {
+                return list;
+            }
+
+            // Seed default services for this barber if they have none yet (just like the Node backend)
+            var defaults = new List<Service>
+            {
+                new Service { NameFa = "اصلاح مو (کلاسیک)", NameEn = "Haircut (Classic)", Price = 150000, DurationMin = 45, BarberId = barberId },
+                new Service { NameFa = "اصلاح ریش و خط دور", NameEn = "Beard Trim & Lineup", Price = 80000, DurationMin = 30, BarberId = barberId },
+                new Service { NameFa = "پکیج داماد / VIP", NameEn = "VIP Grooming Suite", Price = 500000, DurationMin = 120, BarberId = barberId },
+                new Service { NameFa = "پاکسازی پوست و اسکراب", NameEn = "Facial & Skin Care", Price = 120000, DurationMin = 40, BarberId = barberId },
+                new Service { NameFa = "رنگ مو / دکلره", NameEn = "Hair Coloring", Price = 250000, DurationMin = 90, BarberId = barberId }
+            };
+
+            _context.Services.AddRange(defaults);
+            await _context.SaveChangesAsync();
+
+            return defaults;
         }
 
+        // POST: api/appointments/services
+        [HttpPost("services")]
+        public async Task<ActionResult<Service>> CreateService([FromBody] Service service)
+        {
+            if (string.IsNullOrWhiteSpace(service.NameFa))
+            {
+                return BadRequest("نام خدمت الزامی است.");
+            }
+            service.NameEn = service.NameEn ?? "";
+
+            _context.Services.Add(service);
+            await _context.SaveChangesAsync();
+
+            return Ok(service);
+        }
+
+        // PUT: api/appointments/services/{id}
+        [HttpPut("services/{id}")]
+        public async Task<IActionResult> UpdateService(int id, [FromBody] Service service)
+        {
+            if (id != service.Id)
+            {
+                return BadRequest("شناسه خدمت مطابقت ندارد.");
+            }
+
+            _context.Entry(service).State = EntityState.Modified;
+
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                if (!_context.Services.Any(e => e.Id == id))
+                {
+                    return NotFound("خدمت مورد نظر یافت نشد.");
+                }
+                else
+                {
+                    throw;
+                }
+            }
+
+            return Ok(service);
+        }
+
+        // DELETE: api/appointments/services/{id}
+        [HttpDelete("services/{id}")]
+        public async Task<IActionResult> DeleteService(int id)
+        {
+            var service = await _context.Services.FindAsync(id);
+            if (service == null)
+            {
+                return NotFound("خدمت مورد نظر یافت نشد.");
+            }
+
+            _context.Services.Remove(service);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "خدمت با موفقیت حذف شد." });
+        }
+
+        // POST: api/appointments
         [HttpPost]
         public async Task<ActionResult<Appointment>> BookAppointment([FromBody] AppointmentDto dto)
         {
@@ -130,6 +227,7 @@ namespace SalonScheduler.Controllers
                 return BadRequest("تمامی اطلاعات ضروری را وارد کنید.");
             }
 
+            // Checks for existing booking at the same date and time slot for the SAME barber
             var isDoubleBooked = await _context.Appointments
                 .AnyAsync(a => a.BarberId == dto.BarberId && a.Date == dto.Date.Date && a.TimeSlot == dto.TimeSlot);
 
@@ -138,6 +236,7 @@ namespace SalonScheduler.Controllers
                 return BadRequest("این زمان قبلاً توسط مشتری دیگری برای این آرایشگر رزرو شده است.");
             }
 
+            // Verify service exists
             var serviceExists = await _context.Services.AnyAsync(s => s.Id == dto.ServiceId);
             if (!serviceExists)
             {
@@ -159,11 +258,13 @@ namespace SalonScheduler.Controllers
             _context.Appointments.Add(appointment);
             await _context.SaveChangesAsync();
 
+            // Include service details in response
             await _context.Entry(appointment).Reference(a => a.Service).LoadAsync();
 
-            return CreatedAtAction(nameof(GetAppointments), new { id = appointment.Id }, appointment);
+            return Ok(appointment);
         }
 
+        // DELETE: api/appointments/{id}
         [HttpDelete("{id}")]
         public async Task<IActionResult> CancelAppointment(int id, [FromQuery] int barberId)
         {
@@ -184,6 +285,7 @@ namespace SalonScheduler.Controllers
             return Ok(new { message = "نوبت با موفقیت لغو شد." });
         }
 
+        // Helper string hashing for clean, representation code
         private static string SimpleHash(string password)
         {
             using (var sha256 = System.Security.Cryptography.SHA256.Create())
@@ -195,6 +297,7 @@ namespace SalonScheduler.Controllers
         }
     }
 
+    // --- REVENUE DATA TRANSFER OBJECTS ---
 
     public class RegisterBarberDto
     {
