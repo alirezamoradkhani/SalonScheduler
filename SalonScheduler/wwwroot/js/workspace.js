@@ -204,7 +204,7 @@ function renderUI() {
                     <div class="time-slot-row">
                         <div class="slot-time-box">
                             <span class="slot-clock-text">${slot}</span>
-                            <span class="slot-status-occupied">رزرو شده</span>
+                            <span class="slot-status-occupied" style="background: var(--accent-light); color: var(--accent-color); font-weight: bold; border-radius: var(--radius-sm); padding: 0.15rem 0.35rem; font-size: 0.65rem;">رزرو شده</span>
                         </div>
                         <div class="slot-client-info">
                             <span class="slot-client-name">${app.clientName}</span>
@@ -216,17 +216,16 @@ function renderUI() {
                 `;
             } else {
                 if (formSlots) formSlots.innerHTML += `<option value="${slot}">${slot}</option>`;
-                container.innerHTML += `
-                    <div class="time-slot-row">
-                        <div class="slot-time-box">
-                            <span class="slot-clock-text">${slot}</span>
-                            <span class="slot-status-free">آزاد</span>
-                        </div>
-                        <button class="slot-btn-reserve" onclick="selectTimeSlot('${slot}')">رزرو این ساعت</button>
-                    </div>
-                `;
             }
         });
+
+        if (bookedCount === 0) {
+            container.innerHTML = `
+                <div style="text-align: center; padding: 3rem 1.5rem; font-size: 0.75rem; color: var(--text-muted); border: 1px dashed var(--border-color); border-radius: var(--radius-md); width: 100%;">
+                    هیچ نوبتی برای تاریخ انتخاب شده ثبت نشده است. شما می‌توانید ساعت مورد نظر خود را از کادر ثبت نوبت رزرو کنید.
+                </div>
+            `;
+        }
 
         document.getElementById("stat-total-count").innerHTML = `${bookedCount} <span class="stat-unit">نوبت</span>`;
         document.getElementById("stat-total-income").innerHTML = `${income.toLocaleString()} <span class="stat-unit">تومان</span>`;
