@@ -3,359 +3,83 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>سیستم نوبت‌دهی چندکاربره آرایشگاه</title>
-    <!-- Use local css only - no external dependencies or CDNs loading anymore -->
+    <title>ورود - پنل نوبت‌دهی مستقل آرایشگاه</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
-<body class="body-layout">
+<body>
 
     <!-- Header Section -->
     <header class="header-main">
         <div class="header-container">
             <div class="logo-area">
-                <div class="logo-icon-box">
-                    <svg class="scissors-icon animate-pulse" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="6" cy="6" r="3"></circle>
-                        <circle cx="6" cy="18" r="3"></circle>
-                        <line x1="9.8" y1="8.2" x2="19.8" y2="18.2"></line>
-                        <line x1="19.8" y1="8.2" x2="14.8" y2="13.2"></line>
-                        <line x1="12" y1="12" x2="9.8" y2="14.2"></line>
-                    </svg>
-                </div>
+                <div class="logo-icon-box">✂️</div>
                 <div>
-                    <h1 class="header-title">مدیریت نوبت‌دهی مراجعین آرایشگاه</h1>
-                    <p class="header-subtitle">ثبت‌نام و سیستم مدیریت خدمات و نوبت‌ها به صورت مجزا برای هر آرایشگر</p>
+                    <h1 class="header-title">نوبت‌دهی آرایشگاه</h1>
+                    <p class="header-subtitle">مدیریت مستقل خدمات و نوبت‌های مراجعین شما</p>
                 </div>
             </div>
 
             <div class="header-status-area">
-                <!-- Logged In Profile and Logout Banner -->
-                <div id="logged-in-profile" class="profile-badge-group hidden">
-                    <div class="active-barber-badge">
-                        <span class="pulse-indicator-amber"></span>
-                        <span id="active-barber-label" class="bold-text">آرایشگر فعال</span>
-                    </div>
-                    <button type="button" id="btn-auth-logout" class="btn-logout">
-                        خروج از حساب
-                    </button>
-                </div>
                 <div class="db-status-badge">
                     <span class="pulse-indicator-green"></span>
-                    <span>اتصال موفق به دیتابیس SQL Server</span>
+                    <span>اتصال دیتابیس</span>
                 </div>
             </div>
         </div>
     </header>
 
-    <!-- AUTH PORTAL: Visible when currentBarber is null -->
+    <!-- Global Toast / Alert Box -->
+    <div id="alert-box" class="alert-box alert-hidden">
+        <span id="alert-text"></span>
+    </div>
+
+    <!-- AUTH PORTAL -->
     <main id="auth-portal" class="auth-wrapper">
-
-        <!-- Auth Notification Toast (inside Portal) -->
-        <div id="auth-alert-box" class="alert-box alert-hidden">
-            <span id="auth-alert-icon"></span>
-            <span id="auth-alert-text"></span>
-        </div>
-
         <div class="auth-card">
-            <div class="glowing-corner-light"></div>
-
             <div class="auth-card-header">
-                <div class="auth-lock-icon-box">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="auth-header-lock-icon">
-                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                    </svg>
-                </div>
-                <h2 id="auth-title" class="auth-card-title">
-                    ورود به کنترل‌پنل آرایشگران
-                </h2>
-                <p id="auth-subtitle" class="auth-card-subtitle">
-                    جهت ثبت و ویرایش نوبت‌دهی مشتریان، ابتدا وارد حساب خود شوید.
-                </p>
+                <div class="auth-lock-icon-box">🔐</div>
+                <h2 id="auth-title" class="auth-card-title">ورود به پنل نوبت‌دهی</h2>
+                <p id="auth-subtitle" class="auth-card-subtitle">وارد حساب آرایشگری خود شوید.</p>
             </div>
 
-            <!-- Predefined Demo Hint Box -->
             <div id="demo-hint-box" class="demo-box">
-                💡 حساب دمو برای تست سریع: نام کاربری <span class="mono-code">arash</span> و رمزعبور <span class="mono-code">123</span>
+                💡 تست سریع: کاربر <span class="font-mono">arash</span> رمز <span class="font-mono">123</span>
             </div>
 
             <form id="auth-form" class="auth-inner-form">
-                <!-- FullName (Only shown during Registration) -->
                 <div id="field-fullname-group" class="form-group hidden">
-                    <label class="form-label">
-                        <svg class="label-svg" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                            <circle cx="12" cy="7" r="4"></circle>
-                        </svg>
-                        <span>نام و نام خانوادگی آرایشگر <span class="required-star">*</span></span>
-                    </label>
-                    <input type="text" id="auth-fullname" placeholder="مثلا آرش زارعی" class="form-input">
+                    <label class="form-label">نام و نام خانوادگی *</label>
+                    <input type="text" id="auth-fullname" placeholder="آرش صفوی" class="form-input">
                 </div>
 
-                <!-- Username -->
                 <div class="form-group">
-                    <label class="form-label">
-                        <svg class="label-svg" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="12" cy="12" r="10"></circle>
-                            <path d="M16.2 7.8l-2 2a4 4 0 1 0-4 4l2-2"></path>
-                        </svg>
-                        <span>نام کاربری (حروف انگلیسی) <span class="required-star">*</span></span>
-                    </label>
-                    <input type="text" id="auth-username" required placeholder="مثلا arash" dir="ltr" class="form-input text-left font-mono">
+                    <label class="form-label">نام کاربری انگلیسی *</label>
+                    <input type="text" id="auth-username" required placeholder="arash" class="form-input font-mono text-left">
                 </div>
 
-                <!-- Password -->
                 <div class="form-group">
-                    <label class="form-label">
-                        <svg class="label-svg" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                        </svg>
-                        <span>رمز عبور <span class="required-star">*</span></span>
-                    </label>
-                    <input type="password" id="auth-password" required placeholder="••••••••" dir="ltr" class="form-input text-left font-mono">
+                    <label class="form-label">رمز عبور *</label>
+                    <input type="password" id="auth-password" required placeholder="••••••••" class="form-input font-mono text-left">
                 </div>
 
-                <!-- Salon Brand Name (Only shown during Registration) -->
                 <div id="field-salon-group" class="form-group hidden">
-                    <label class="form-label">
-                        <svg class="label-svg" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-                            <polyline points="9 22 9 12 15 12 15 22"></polyline>
-                        </svg>
-                        <span>نام برند سالن آرایشگاه (اختیاری)</span>
-                    </label>
-                    <input type="text" id="auth-salon" placeholder="مثلا آرایشگاه شاهکار" class="form-input">
+                    <label class="form-label">نام سالن آرایشگاه</label>
+                    <input type="text" id="auth-salon" placeholder="سالن کلاسیک" class="form-input">
                 </div>
 
-                <!-- Submit Button -->
-                <button type="submit" id="auth-submit-btn" class="btn-primary auth-submit-btn">
+                <button type="submit" id="auth-submit-btn" class="btn-primary">
                     <span>ورود به سیستم نوبت‌دهی</span>
                 </button>
             </form>
 
-            <!-- Toggle Auth Mode button -->
             <div class="toggle-footer">
                 <button type="button" id="auth-mode-toggle" class="btn-text-link">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M17 2.1l4 4-4 4"></path>
-                        <path d="M3 12.2v-2a4 4 0 0 1 4-4h14"></path>
-                        <path d="M7 21.9l-4-4 4-4"></path>
-                        <path d="M21 11.8v2a4 4 0 0 1-4 4H3"></path>
-                    </svg>
                     <span>هنوز حساب ندارید؟ ثبت سالن جدید</span>
                 </button>
             </div>
         </div>
     </main>
 
-    <!-- CORE WORKSPACE CONTAINER: Visible when currentBarber is logged in -->
-    <main id="app-workspace" class="workspace-layout hidden">
-
-        <!-- Top Information Banner / Isolation Greeting -->
-        <div class="info-banner">
-            <div class="banner-right-side">
-                <span class="banner-icon">⚡</span>
-                <div>
-                    <h4 class="banner-title">کنترل‌پنل نوبت‌دهی مستقل آرایشگر</h4>
-                    <p class="banner-subtitle">این سیستم نوبت‌های شما را کاملاً مجزا و محافظت شده ذخیره می‌نماید و همکاران تداخلی با نوبت‌هایتان ندارند.</p>
-                </div>
-            </div>
-            <div class="banner-left-side">
-                تاریخ امروز سیستم: <span id="current-live-date" class="highlight-amber">بارگذاری...</span>
-            </div>
-        </div>
-
-        <!-- Dashboard Stats Widgets -->
-        <section class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-content">
-                    <p class="stat-label">نوبت‌های رزرو شده شما امروز</p>
-                    <p id="stat-total-count" class="stat-value font-mono">0 <span class="stat-unit">نوبت</span></p>
-                </div>
-                <div class="stat-icon-wrapper widget-amber">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                        <line x1="16" y1="2" x2="16" y2="6"></line>
-                        <line x1="8" y1="2" x2="8" y2="6"></line>
-                        <line x1="3" y1="10" x2="21" y2="10"></line>
-                    </svg>
-                </div>
-            </div>
-
-            <div class="stat-card">
-                <div class="stat-content">
-                    <p class="stat-label">درآمد برآوردی امروز شما</p>
-                    <p id="stat-total-income" class="stat-value font-mono value-green">0 <span class="stat-unit">تومان</span></p>
-                </div>
-                <div class="stat-icon-wrapper widget-green">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <line x1="12" y1="1" x2="12" y2="23"></line>
-                        <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
-                    </svg>
-                </div>
-            </div>
-
-            <div class="stat-card">
-                <div class="stat-content">
-                    <p class="stat-label">ساعات کل آماده پذیرش</p>
-                    <p id="stat-free-slots" class="stat-value font-mono">22 <span class="stat-unit">بازه آزاد</span></p>
-                </div>
-                <div class="stat-icon-wrapper widget-zinc">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="12" cy="12" r="10"></circle>
-                        <polyline points="12 6 12 12 16 14"></polyline>
-                    </svg>
-                </div>
-            </div>
-        </section>
-
-        <!-- Status & Success Alert Box (inside Dashboard) -->
-        <div id="alert-box" class="alert-box alert-hidden">
-            <span id="alert-icon"></span>
-            <span id="alert-text"></span>
-        </div>
-
-        <!-- Date Swiper Row Selection -->
-        <section class="date-selector-container">
-            <div class="date-swiper-wrapper" id="date-swiper-wrapper">
-                <!-- Days will be dynamically written by JS -->
-            </div>
-        </section>
-
-        <!-- Main Workspace Grid: Book Form Left, Timeslots Right -->
-        <section class="workspace-main-grid">
-
-            <!-- FORM CONTAINER: LEFT SIDEBAR -->
-            <div class="left-sidebar-card">
-                <div class="sidebar-header">
-                    <span class="sidebar-header-icon">➕</span>
-                    <h3 class="sidebar-header-title">ثبت نوبت کاری جدید آرایشگاه</h3>
-                </div>
-
-                <form id="appointment-form" class="appointment-inner-form">
-                    <!-- Client Name -->
-                    <div class="form-group-spaced">
-                        <label class="form-label-bold">نام مراجع یا مشتری <span class="required-star">*</span></label>
-                        <input type="text" id="client-name" required placeholder="مثلا رضا کریمی" class="form-input">
-                    </div>
-
-                    <!-- Client Phone -->
-                    <div class="form-group-spaced">
-                        <label class="form-label-bold">شماره تلفن همراه <span class="required-star">*</span></label>
-                        <input type="tel" id="client-phone" required placeholder="مثلا 09121234567" dir="ltr" class="form-input text-left font-mono">
-                    </div>
-
-                    <!-- Time Slot -->
-                    <div class="form-group-spaced">
-                        <label class="form-label-bold">انتخاب ساعت شروع نوبت <span class="required-star">*</span></label>
-                        <div class="select-wrapper">
-                            <select id="time-slot" required class="form-select">
-                                <option value="">-- یک ساعت آزاد انتخاب کنید --</option>
-                                <!-- Hours will be rewritten by JS based on selected date -->
-                            </select>
-                            <div class="select-arrow-indicator">▼</div>
-                        </div>
-                    </div>
-
-                    <!-- Service Details Selection -->
-                    <div class="form-group-spaced">
-                        <label class="form-label-bold">سرویس و خدمت مورد نظر</label>
-                        <div class="select-wrapper">
-                            <select id="service-id" required class="form-select">
-                                <!-- Loaded dynamically from api/appointments/services -->
-                            </select>
-                            <div class="select-arrow-indicator">▼</div>
-                        </div>
-                    </div>
-
-                    <!-- Additional Notes -->
-                    <div class="form-group-spaced">
-                        <label class="form-label-bold">یادداشت سلیقه مشتری یا نکته خاص (اختیاری)</label>
-                        <textarea id="notes" rows="2" placeholder="سایه فید بغل سر، لوسیون یا شامپو مخصوص..." class="form-textarea"></textarea>
-                    </div>
-
-                    <!-- Submit Action Button -->
-                    <button type="submit" class="btn-primary full-width font-bold">
-                        ثبت و ذخیره نوبت در دیتابیس
-                    </button>
-                </form>
-
-                <!-- Services Directory & Management Panel -->
-                <div class="sidebar-footer-services">
-                    <div class="services-header-inline">
-                        <h4 class="services-sidebar-title">خدمات و سرویس‌های تخصصی شما</h4>
-                        <button type="button" class="btn-toggle-service-form" onclick="toggleAddServiceForm()">
-                            ➕ افزودن خدمت جدید
-                        </button>
-                    </div>
-
-                    <!-- Add/Edit Inline Form -->
-                    <div id="service-management-form-container" class="service-mgmt-form hidden">
-                        <h5 id="service-form-title" class="service-form-subtitle">افزودن خدمت جدید</h5>
-
-                        <input type="hidden" id="mgmt-service-id" value="">
-
-                        <div class="form-group-spaced">
-                            <label class="form-label" style="font-size: 0.72rem; font-weight: bold;">نام فارسی خدمت <span class="required-star">*</span></label>
-                            <input type="text" id="mgmt-service-name" placeholder="مثلاً سایه‌زنی حرفه‌ای" class="form-input" style="padding: 0.45rem;">
-                        </div>
-
-                        <div class="form-row-spaced">
-                            <div class="form-group-spaced" style="flex: 1;">
-                                <label class="form-label" style="font-size: 0.72rem; font-weight: bold;">قیمت (تومان) <span class="required-star">*</span></label>
-                                <input type="number" id="mgmt-service-price" placeholder="مثلاً 180000" class="form-input font-mono" style="padding: 0.45rem;">
-                            </div>
-                            <div class="form-group-spaced" style="flex: 1;">
-                                <label class="form-label" style="font-size: 0.72rem; font-weight: bold;">مدت (دقیقه) <span class="required-star">*</span></label>
-                                <input type="number" id="mgmt-service-duration" placeholder="مثلاً 40" class="form-input font-mono" style="padding: 0.45rem;">
-                            </div>
-                        </div>
-
-                        <div class="service-mgmt-actions">
-                            <button type="button" class="btn-primary" style="padding: 0.45rem 0.9rem; font-size: 0.75rem; border-radius: var(--radius-sm);" onclick="saveCustomService()">
-                                ذخیره اطلاعات
-                            </button>
-                            <button type="button" class="btn-text-link" style="color: var(--text-muted); font-size: 0.72rem;" onclick="cancelServiceForm()">
-                                انصراف
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Services listing container -->
-                    <div id="services-list-sidebar" class="sidebar-services-stack">
-                        <!-- Loaded by JS -->
-                    </div>
-                </div>
-            </div>
-
-            <!-- TIMELINE HOURS SLOTS LIST: RIGHT SIDE -->
-            <div class="right-timeline-column">
-                <div class="timeline-meta-header">
-                    <div>
-                        <h3 class="timeline-title">زمان‌بندی و نوبت‌های تاریخ انتخابی</h3>
-                        <p class="timeline-subtitle">بر روی دکمه «رزرو این ساعت» کلیک کنید تا ساعت فرم پر شود</p>
-                    </div>
-                    <span id="selected-date-badge" class="date-badge-pill">امروز</span>
-                </div>
-
-                <!-- Live timeline slot stream -->
-                <div id="timeline-slots-container" class="timeline-slots-scroller">
-                    <!-- Dynamic template rendered in Javascript -->
-                </div>
-            </div>
-
-        </section>
-
-    </main>
-
-    <!-- Footer of Standalone -->
-    <footer class="footer-main">
-        <p>طراحی شده مخصوص استفاده آرایشگران مستقل با الگوی ادغام در ASP.NET Core & MS SQL Server</p>
-        <p class="font-mono">Development Platform Workspace - 2026</p>
-    </footer>
-
-    <!-- Connect Application Scripts -->
-    <script src="js/app.js?v=2.3"></script>
+    <script src="js/login.js"></script>
 </body>
 </html>

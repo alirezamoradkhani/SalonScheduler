@@ -1,0 +1,179 @@
+﻿<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>پنل نوبت‌دهی مستقل آرایشگاه - مدیریت نوبت‌ها</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+    <!-- Header Section -->
+    <header class="header-main">
+        <div class="header-container">
+            <div class="logo-area">
+                <div class="logo-icon-box">✂️</div>
+                <div>
+                    <h1 class="header-title">نوبت‌دهی آرایشگاه</h1>
+                    <p class="header-subtitle">مدیریت مستقل خدمات و نوبت‌های مراجعین شما</p>
+                </div>
+            </div>
+
+            <div class="header-status-area">
+                <div id="logged-in-profile" class="profile-badge-group">
+                    <div class="active-barber-badge">
+                        <span class="pulse-indicator-amber"></span>
+                        <span id="active-barber-label" class="bold-text">بارگذاری...</span>
+                    </div>
+                    <button type="button" id="btn-auth-logout" class="btn-logout">خروج</button>
+                </div>
+                <div class="db-status-badge">
+                    <span class="pulse-indicator-green"></span>
+                    <span>اتصال دیتابیس</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Global Toast / Alert Box -->
+    <div id="alert-box" class="alert-box alert-hidden">
+        <span id="alert-text"></span>
+    </div>
+
+    <!-- CORE WORKSPACE CONTAINER -->
+    <main id="app-workspace" class="workspace-layout">
+        <div class="info-banner">
+            <div>
+                <span class="banner-title">پنل مدیریت اختصاصی شما</span>
+            </div>
+            <div>
+                امروز: <span id="current-live-date">...</span>
+            </div>
+        </div>
+
+        <!-- Dashboard Stats Widgets -->
+        <section class="stats-grid">
+            <div class="stat-card">
+                <div>
+                    <p class="stat-label">نوبت‌های امروز</p>
+                    <p id="stat-total-count" class="stat-value">0 نوبت</p>
+                </div>
+                <div class="stat-icon-wrapper widget-amber">📅</div>
+            </div>
+
+            <div class="stat-card">
+                <div>
+                    <p class="stat-label">درآمد برآوردی</p>
+                    <p id="stat-total-income" class="stat-value">0 تومان</p>
+                </div>
+                <div class="stat-icon-wrapper widget-green">💵</div>
+            </div>
+
+            <div class="stat-card">
+                <div>
+                    <p class="stat-label">ساعات آزاد</p>
+                    <p id="stat-free-slots" class="stat-value">0 ساعت</p>
+                </div>
+                <div class="stat-icon-wrapper widget-zinc">🕒</div>
+            </div>
+        </section>
+
+        <!-- Date Swiper Row Selection with Custom Picker -->
+        <section class="date-selector-container" style="display: flex; flex-direction: column; gap: 0.75rem; padding: 1rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                <span class="form-label-bold" style="margin: 0; font-size: 0.8rem;">تاریخ نوبت‌دهی:</span>
+                <input type="date" id="custom-date-picker" class="form-input" style="width: auto; max-width: 170px; font-family: monospace; padding: 0.35rem 0.6rem; cursor: pointer;">
+            </div>
+            <div class="date-swiper-wrapper" id="date-swiper-wrapper"></div>
+        </section>
+
+        <!-- Main Workspace Grid -->
+        <section class="workspace-main-grid">
+
+            <!-- FORM CONTAINER: LEFT SIDEBAR -->
+            <div class="left-sidebar-card">
+                <div class="sidebar-header">
+                    <h3 class="sidebar-header-title">➕ ثبت نوبت جدید</h3>
+                </div>
+
+                <form id="appointment-form" class="appointment-inner-form">
+                    <div class="form-group-spaced">
+                        <label class="form-label-bold">نام مشتری *</label>
+                        <input type="text" id="client-name" required placeholder="رضا کریمی" class="form-input">
+                    </div>
+
+                    <div class="form-group-spaced">
+                        <label class="form-label-bold">تلفن همراه *</label>
+                        <input type="tel" id="client-phone" required placeholder="09121234567" class="form-input text-left font-mono">
+                    </div>
+
+                    <div class="form-group-spaced">
+                        <label class="form-label-bold">ساعت شروع *</label>
+                        <select id="time-slot" required class="form-select">
+                            <option value="">-- انتخاب ساعت --</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group-spaced">
+                        <label class="form-label-bold">سرویس مورد نظر *</label>
+                        <select id="service-id" required class="form-select"></select>
+                    </div>
+
+                    <div class="form-group-spaced">
+                        <label class="form-label-bold">یادداشت (اختیاری)</label>
+                        <textarea id="notes" rows="1" placeholder="نکته خاص..." class="form-textarea"></textarea>
+                    </div>
+
+                    <button type="submit" class="btn-primary full-width">ذخیره نوبت در دیتابیس</button>
+                </form>
+
+                <!-- Services Directory & Management Panel -->
+                <div class="sidebar-footer-services">
+                    <div class="services-header-inline">
+                        <h4 class="services-sidebar-title">خدمات تخصصی</h4>
+                        <button type="button" class="btn-toggle-service-form" onclick="toggleAddServiceForm()">📂 سرویس جدید</button>
+                    </div>
+
+                    <!-- Add/Edit Inline Form -->
+                    <div id="service-management-form-container" class="service-mgmt-form hidden">
+                        <h5 id="service-form-title">افزودن خدمت جدید</h5>
+                        <input type="hidden" id="mgmt-service-id" value="">
+
+                        <div class="form-group-spaced">
+                            <input type="text" id="mgmt-service-name" placeholder="نام خدمت" class="form-input">
+                        </div>
+
+                        <div class="form-row-spaced">
+                            <input type="number" id="mgmt-service-price" placeholder="قیمت (تومان)" class="form-input font-mono">
+                            <input type="number" id="mgmt-service-duration" placeholder="مدت (دقیقه)" class="form-input font-mono">
+                        </div>
+
+                        <div class="service-mgmt-actions">
+                            <button type="button" class="btn-primary" onclick="saveCustomService()">ذخیره</button>
+                            <button type="button" class="btn-text-link" onclick="cancelServiceForm()">انصراف</button>
+                        </div>
+                    </div>
+
+                    <div id="services-list-sidebar" class="sidebar-services-stack"></div>
+                </div>
+            </div>
+
+            <!-- TIMELINE HOURS SLOTS LIST: RIGHT SIDE -->
+            <div class="right-timeline-column">
+                <div class="timeline-meta-header">
+                    <div>
+                        <h3 class="timeline-title">زمان‌بندی و نوبت‌ها</h3>
+                        <p class="timeline-subtitle">برای انتخاب، روی رزرو زیر کلیک کنید</p>
+                    </div>
+                    <span id="selected-date-badge" class="date-badge-pill">امروز</span>
+                </div>
+
+                <div id="timeline-slots-container" class="timeline-slots-scroller"></div>
+            </div>
+
+        </section>
+    </main>
+
+    <script src="js/workspace.js"></script>
+</body>
+</html>
